@@ -255,6 +255,27 @@
     padding: 3px 4px;
   }
 
+  .add-recipient-btn {
+    background: var(--accent-soft);
+    border: 1px solid rgba(124,106,247,0.3);
+    color: var(--accent);
+    font-size: 20px;
+    line-height: 1;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    padding: 0;
+    align-self: center;
+  }
+
+  .add-recipient-btn:hover { background: rgba(124,106,247,0.15); }
+
   .recipients-hint {
     font-size: 10px;
     color: var(--text-dim);
@@ -656,12 +677,13 @@
       <input
         class="recipients-input"
         id="recipientInput"
-        type="text"
-        placeholder="email@example.com — Enter или запятая"
+        type="email"
+        placeholder="email@example.com"
         autocomplete="off"
+        inputmode="email"
       >
     </div>
-    <div class="recipients-hint">↵ Enter или , для добавления · Backspace для удаления последнего</div>
+    <div class="recipients-hint">Enter, запятая или смена поля для добавления · Backspace для удаления</div>
   </div>
 
   <!-- SUBJECT -->
@@ -722,7 +744,6 @@
 
 <script data-cfasync="false">
   // ── Config ─────────────────────────────────────────────────────────────────
-  // Замени на свой URL воркера:
   const PROXY_URL = 'https://mandrill-proxy.dhnf11.workers.dev';
 
   // Email через JS — иначе Cloudflare обфусцирует @ в HTML
@@ -764,6 +785,13 @@
   const attachments = []; // { name, type, base64 }
 
   // ── Recipients ────────────────────────────────────────────────────────────
+  function addFromInput() {
+    const input = document.getElementById('recipientInput');
+    const val = input.value.trim().replace(/,/g, '');
+    if (val) { addRecipient(val); input.value = ''; }
+    input.focus();
+  }
+
   function focusRecipientInput() {
     document.getElementById('recipientInput').focus();
   }
@@ -780,7 +808,18 @@
     }
   });
 
+  document.getElementById('recipientInput').addEventListener('blur', function() {
+    const val = this.value.trim().replace(/,/g, '');
+    if (val) { addRecipient(val); this.value = ''; }
+  });
+
   document.getElementById('recipientInput').addEventListener('paste', function(e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const emails = text.split(/[\s,;]+/).filter(s => s.includes('@'));
+    emails.forEach(addRecipient);
+    this.value = '';
+  });
     e.preventDefault();
     const text = (e.clipboardData || window.clipboardData).getData('text');
     const emails = text.split(/[\s,;]+/).filter(s => s.includes('@'));
