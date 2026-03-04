@@ -939,8 +939,69 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Отправка...';
 
-    // Detect if body looks like HTML
-    const isHtml = /<[a-z][\s\S]*>/i.test(body);
+    // Оборачиваем текст в HTML-шаблон в зависимости от отправителя
+    const bodyText = body ? body.replace(/\n/g, '<br>') : '&nbsp;';
+
+    const htmlBody = senderKey === 'rustat' ? `<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f0f0;padding:40px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+      <tr>
+        <td style="background:#111111;border-radius:12px 12px 0 0;padding:28px 40px;">
+          <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Rustat</span>
+          <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#666666;text-transform:uppercase;letter-spacing:0.1em;margin-left:12px;">report@rustatsport.ru</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#ffffff;padding:40px 40px 36px;">
+          <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.7;color:#222222;">${bodyText}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#f7f7f7;border-radius:0 0 12px 12px;border-top:1px solid #eeeeee;padding:20px 40px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#aaaaaa;">Rustat · rustatsport.ru</td>
+            <td align="right" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#aaaaaa;">Это письмо отправлено вручную</td>
+          </tr></table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`
+    : `<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#e8f0f8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#e8f0f8;padding:40px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+      <tr>
+        <td style="background:#1a3a5c;border-radius:12px 12px 0 0;padding:28px 40px;">
+          <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Sportsbase</span>
+          <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#7aaad0;text-transform:uppercase;letter-spacing:0.1em;margin-left:12px;">reports@sportsbase.world</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#ffffff;padding:40px 40px 36px;">
+          <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.7;color:#222222;">${bodyText}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#f2f7fc;border-radius:0 0 12px 12px;border-top:1px solid #dde8f0;padding:20px 40px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#aaaaaa;">Sportsbase · sportsbase.world</td>
+            <td align="right" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#aaaaaa;">Это письмо отправлено вручную</td>
+          </tr></table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+
+    const isHtml = true;
 
     const payload = {
       // key добавляется воркером из секрета
@@ -950,7 +1011,7 @@
         subject:    subject || '(без темы)',
         to: recipients.map(email => ({ email, type: 'to' })),
         ...(isHtml
-          ? { html: body || '<p></p>' }
+          ? { html: htmlBody }
           : { text: body || ' ' }
         ),
       }
