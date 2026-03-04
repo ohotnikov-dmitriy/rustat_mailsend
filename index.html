@@ -623,26 +623,29 @@
     <p class="subtitle">// отправка писем через Mandrill с вложениями</p>
   </header>
 
-  <!-- SENDER SELECT -->
-  <div class="section">
-    <div class="section-title">— Отправитель</div>
-    <div class="sender-selector">
-      <label class="sender-option">
-        <input type="radio" name="sender" value="rustat" checked>
-        <span class="sender-card">
-          <div class="s-name">Rustat</div>
-          <div class="s-email" id="emailRustat">почта report@rustatsport.ru</div>
-        </span>
-      </label>
-      <label class="sender-option">
-        <input type="radio" name="sender" value="sportsbase">
-        <span class="sender-card">
-          <div class="s-name">Sportsbase</div>
-          <div class="s-email" id="emailSportsbase">почта reports@sportsbase.world</div>
-        </span>
-      </label>
-    </div>
+<!-- SENDER SELECT -->
+<div class="section">
+  <div class="section-title">— Отправитель</div>
+  <div class="sender-selector">
+
+    <label class="sender-option">
+      <input type="radio" name="sender" value="rustat" checked>
+      <span class="sender-card">
+        <div class="s-name">Rustat</div>
+        <div class="s-email">почта report@rustatsport.ru</div>
+      </span>
+    </label>
+
+    <label class="sender-option">
+      <input type="radio" name="sender" value="sportsbase">
+      <span class="sender-card">
+        <div class="s-name">Sportsbase</div>
+        <div class="s-email">почта reports@sportsbase.world</div>
+      </span>
+    </label>
+
   </div>
+</div>
 
   <div class="divider"></div>
 
@@ -720,18 +723,20 @@
   <div class="status-box" id="statusBox"></div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   // ── Config ─────────────────────────────────────────────────────────────────
   const PROXY_URL = 'https://mandrill-proxy.dhnf11.workers.dev';
 
   // ── Auth ───────────────────────────────────────────────────────────────────
-  let sessionToken = null;
+  let sessionToken = sessionStorage.getItem('authToken');
+  if (sessionToken) {
+    document.getElementById('loginScreen').style.display = 'none';
+  }
 
   async function doLogin() {
     const pwd = document.getElementById('loginInput').value;
     if (!pwd) return;
 
-    // Проверяем токен через воркер — если 401, пароль неверный
     try {
       const res = await fetch(PROXY_URL, {
         method: 'POST',
@@ -748,6 +753,7 @@
     }
 
     sessionToken = pwd;
+    sessionStorage.setItem('authToken', pwd);
     document.getElementById('loginScreen').style.display = 'none';
   }
 
@@ -1181,16 +1187,4 @@
         const results = Array.isArray(data) ? data : [data];
         const lines = results.map(r =>
           `${r.email} → <strong style="color:var(--success)">${r.status}</strong>${r.reject_reason ? ' (' + r.reject_reason + ')' : ''}`
-        ).join('<br>');
-        setStatus('success', `<strong>✓ Отправлено!</strong><br><br>${lines}`);
-      }
-    } catch (err) {
-      setStatus('error', `<strong>Сетевая ошибка:</strong><pre>${escHtml(err.message)}</pre>`);
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = 'Отправить письмо →';
-  }
-</script>
-</body>
-</html>
+        ).join(
