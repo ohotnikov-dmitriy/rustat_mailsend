@@ -1,76 +1,1204 @@
-export default {
-  async fetch(request, env) {
-    // CORS preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, X-Auth-Token",
-        },
-      });
-    }
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandrill Sender</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --border-active: #3d3d5c;
+    --accent: #7c6af7;
+    --accent-glow: rgba(124, 106, 247, 0.25);
+    --accent-soft: rgba(124, 106, 247, 0.08);
+    --text: #e8e8f0;
+    --text-muted: #5a5a7a;
+    --text-dim: #3a3a5a;
+    --success: #4ade80;
+    --error: #f87171;
+    --warning: #fbbf24;
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
 
-    if (request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
-    }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    // Проверка токена
-    const token = request.headers.get("X-Auth-Token");
-    if (!token || token !== env.AUTH_TOKEN) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
-    }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px 80px;
+    position: relative;
+    overflow-x: hidden;
+  }
 
-    let payload;
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(124, 106, 247, 0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 100%);
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 720px;
+  }
+
+  header {
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .label-tag {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(124, 106, 247, 0.2);
+    padding: 3px 10px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .section {
+    margin-bottom: 28px;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .section:nth-child(1) { animation-delay: 0.05s; }
+  .section:nth-child(2) { animation-delay: 0.1s; }
+  .section:nth-child(3) { animation-delay: 0.15s; }
+  .section:nth-child(4) { animation-delay: 0.2s; }
+  .section:nth-child(5) { animation-delay: 0.25s; }
+  .section:nth-child(6) { animation-delay: 0.3s; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .field-label .num {
+    width: 18px;
+    height: 18px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(124,106,247,0.3);
+    color: var(--accent);
+    font-size: 9px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .optional-badge {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  }
+
+  input:focus, textarea:focus {
+    border-color: var(--accent);
+    background: #13131e;
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--text-dim);
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 140px;
+    line-height: 1.6;
+  }
+
+  /* Recipients tags input */
+  .recipients-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    cursor: text;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-height: 50px;
+    align-items: flex-start;
+  }
+
+  .recipients-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(124,106,247,0.25);
+    color: var(--accent);
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    animation: tagIn 0.15s ease;
+  }
+
+  @keyframes tagIn {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .tag button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s;
+  }
+
+  .tag button:hover { color: var(--error); }
+
+  .recipients-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    flex: 1;
+    min-width: 180px;
+    padding: 3px 4px;
+  }
+
+  .recipients-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  /* File upload */
+  .file-zone {
+    border: 1px dashed var(--border-active);
+    border-radius: 6px;
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .file-zone:hover, .file-zone.dragging {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .file-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
+  }
+
+  .file-zone-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+  }
+
+  .file-zone-text {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .file-zone-text strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .file-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-size: 12px;
+    animation: tagIn 0.15s ease;
+  }
+
+  .file-item .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  .file-item .file-size {
+    color: var(--text-muted);
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .file-item .file-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .file-item .file-remove:hover { color: var(--error); }
+
+  /* API key field */
+  .api-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .api-row input { flex: 1; }
+
+  .btn-icon {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 14px;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: border-color 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+  }
+
+  .btn-icon:hover {
+    border-color: var(--border-active);
+    color: var(--text);
+  }
+
+  /* Sender selector */
+  .sender-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .sender-option {
+    position: relative;
+  }
+
+  .sender-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .sender-card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  }
+
+  .sender-card:hover {
+    border-color: var(--border-active);
+  }
+
+  .sender-option input[type="radio"]:checked + .sender-card {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .sender-card .s-name {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .sender-card .s-email {
+    font-size: 11px;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+
+  .sender-option input[type="radio"]:checked + .sender-card .s-name {
+    color: var(--accent);
+  }
+
+  /* Submit */
+  .submit-wrap {
+    margin-top: 36px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-send {
+    flex: 1;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 16px 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-send::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .btn-send:hover:not(:disabled) {
+    box-shadow: 0 0 28px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-send:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-send:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Status */
+  .status-box {
+    margin-top: 20px;
+    padding: 14px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    display: none;
+    border: 1px solid;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .status-box.success {
+    display: block;
+    background: rgba(74, 222, 128, 0.06);
+    border-color: rgba(74, 222, 128, 0.25);
+    color: var(--success);
+  }
+
+  .status-box.error {
+    display: block;
+    background: rgba(248, 113, 113, 0.06);
+    border-color: rgba(248, 113, 113, 0.25);
+    color: var(--error);
+  }
+
+  .status-box pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-top: 8px;
+    font-size: 11px;
+    opacity: 0.75;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 36px 0;
+  }
+
+  .section-title {
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+
+  .size-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .size-bar-track {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .size-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 99px;
+    background: var(--accent);
+    transition: width 0.3s ease, background 0.3s ease;
+  }
+
+  .size-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .char-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<div id="loginScreen" style="
+  position:fixed; inset:0; z-index:100;
+  background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:20px; padding:24px;
+">
+  <div style="text-align:center; margin-bottom:8px;">
+    <div class="label-tag">Mandrill API</div>
+    <h1 style="font-family:var(--display);font-size:32px;font-weight:800;letter-spacing:-0.02em;">Mail<span style="color:var(--accent)">Send</span></h1>
+  </div>
+  <div style="width:100%;max-width:340px;">
+    <div class="field-label" style="margin-bottom:8px;"><span>🔑</span> Пароль доступа</div>
+    <input
+      type="password"
+      id="loginInput"
+      placeholder="Введите пароль..."
+      style="width:100%"
+      onkeydown="if(event.key==='Enter') doLogin()"
+      autocomplete="off"
+    >
+    <div id="loginError" style="color:var(--error);font-size:11px;margin-top:8px;display:none;">
+      Неверный пароль
+    </div>
+  </div>
+  <button class="btn-send" style="width:340px;max-width:100%;flex:none;" onclick="doLogin()">Войти →</button>
+</div>
+
+<div class="container">
+  <header>
+    <div class="label-tag">Mandrill API</div>
+    <h1>Mail<span>Send</span></h1>
+    <p class="subtitle">// отправка писем через Mandrill с вложениями</p>
+  </header>
+
+  <!-- SENDER SELECT -->
+  <div class="section">
+    <div class="section-title">— Отправитель</div>
+    <div class="sender-selector">
+      <label class="sender-option">
+        <input type="radio" name="sender" value="rustat" checked>
+        <span class="sender-card">
+          <div class="s-name">Rustat</div>
+          <div class="s-email" id="emailRustat"></div>
+        </span>
+      </label>
+      <label class="sender-option">
+        <input type="radio" name="sender" value="sportsbase">
+        <span class="sender-card">
+          <div class="s-name">Sportsbase</div>
+          <div class="s-email" id="emailSportsbase"></div>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- RECIPIENTS -->
+  <div class="section">
+    <div class="field-label">
+      <span class="num">1</span>
+      Получатели
+    </div>
+    <div class="recipients-wrap" id="recipientsWrap" onclick="focusRecipientInput()">
+      <input
+        class="recipients-input"
+        id="recipientInput"
+        type="text"
+        placeholder="email@example.com — Enter или запятая"
+        autocomplete="off"
+      >
+    </div>
+    <div class="recipients-hint">↵ Enter или , для добавления · Backspace для удаления последнего</div>
+  </div>
+
+  <!-- SUBJECT -->
+  <div class="section">
+    <div class="field-label">
+      <span class="num">2</span>
+      Тема письма
+      <span class="optional-badge">опционально</span>
+    </div>
+    <input type="text" id="subject" placeholder="Введите тему письма...">
+  </div>
+
+  <!-- BODY -->
+  <div class="section">
+    <div class="field-label">
+      <span class="num">3</span>
+      Содержимое
+      <span class="optional-badge">опционально · HTML поддерживается</span>
+    </div>
+    <textarea id="body" placeholder="Текст письма...&#10;&#10;Поддерживается HTML разметка." oninput="updateCharCount()"></textarea>
+    <div class="char-count" id="charCount">0 символов</div>
+  </div>
+
+  <!-- ATTACHMENTS -->
+  <div class="section">
+    <div class="field-label">
+      <span class="num">4</span>
+      Вложения
+      <span class="optional-badge">опционально · любые файлы</span>
+    </div>
+    <div class="file-zone" id="fileZone"
+      ondrop="handleDrop(event)"
+      ondragover="handleDragOver(event)"
+      ondragleave="handleDragLeave(event)"
+    >
+      <input type="file" id="fileInput" multiple onchange="handleFiles(this.files)">
+      <div class="file-zone-icon">📎</div>
+      <div class="file-zone-text">
+        <strong>Кликните</strong> или перетащите файлы сюда
+      </div>
+    </div>
+    <div class="file-list" id="fileList"></div>
+    <div class="size-bar-wrap" id="sizeBarWrap">
+      <div class="size-bar-track"><div class="size-bar-fill" id="sizeBar"></div></div>
+      <span class="size-label" id="sizeLabel">0 B / 20 MB</span>
+    </div>
+  </div>
+
+  <!-- SUBMIT -->
+  <div class="submit-wrap">
+    <button class="btn-send" id="sendBtn" onclick="sendEmail()">
+      Отправить письмо →
+    </button>
+  </div>
+
+  <div class="status-box" id="statusBox"></div>
+</div>
+
+<script data-cfasync="false">
+  // ── Config ─────────────────────────────────────────────────────────────────
+  // Замени на свой URL воркера:
+  const PROXY_URL = 'https://mandrill-proxy.dhnf11.workers.dev';
+
+  // Email через JS — иначе Cloudflare обфусцирует @ в HTML
+  document.getElementById('emailRustat').textContent    = 'почта ' + 'report' + '@' + 'rustatsport.ru';
+  document.getElementById('emailSportsbase').textContent = 'почта ' + 'reports' + '@' + 'sportsbase.world';
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  let sessionToken = sessionStorage.getItem('authToken');
+  if (sessionToken) {
+    document.getElementById('loginScreen').style.display = 'none';
+  }
+
+  async function doLogin() {
+    const pwd = document.getElementById('loginInput').value;
+    if (!pwd) return;
+
     try {
-      payload = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Auth-Token': pwd },
+        body: JSON.stringify({ _auth_check: true }),
       });
-    }
-
-    // Просто проверка токена — не шлём в Mandrill
-    if (payload._auth_check) {
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
-    }
-
-    // Ключ подставляется здесь из секрета воркера — в HTML его нет
-    payload.key = env.MANDRILL_API_KEY;
-    // Отключаем автоматический футер с unsubscribe
-    if (payload.message) {
-      payload.message.auto_text = false;
-      payload.message.auto_html = false;
-      payload.message.inline_css = false;
-      payload.message.url_strip_qs = false;
-      payload.message.preserve_recipients = false;
-      payload.message.view_content_link = false;
-    }
-
-    const mandrillRes = await fetch(
-      "https://mandrillapp.com/api/1.0/messages/send.json",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      if (res.status === 401) {
+        document.getElementById('loginError').style.display = 'block';
+        return;
       }
-    );
+    } catch (e) {
+      document.getElementById('loginError').style.display = 'block';
+      return;
+    }
 
-    const data = await mandrillRes.text();
+    sessionToken = pwd;
+    sessionStorage.setItem('authToken', pwd);
+    document.getElementById('loginScreen').style.display = 'none';
+  }
 
-    return new Response(data, {
-      status: mandrillRes.status,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+  // ── State ──────────────────────────────────────────────────────────────────
+  const recipients = [];
+  const attachments = []; // { name, type, base64 }
+
+  // ── Recipients ────────────────────────────────────────────────────────────
+  function focusRecipientInput() {
+    document.getElementById('recipientInput').focus();
+  }
+
+  document.getElementById('recipientInput').addEventListener('keydown', function(e) {
+    const val = this.value.trim();
+    if ((e.key === 'Enter' || e.key === ',') && val) {
+      e.preventDefault();
+      addRecipient(val.replace(/,/g, ''));
+      this.value = '';
+    }
+    if (e.key === 'Backspace' && !this.value && recipients.length) {
+      removeRecipient(recipients.length - 1);
+    }
+  });
+
+  document.getElementById('recipientInput').addEventListener('paste', function(e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const emails = text.split(/[\s,;]+/).filter(s => s.includes('@'));
+    emails.forEach(addRecipient);
+    this.value = '';
+  });
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  function addRecipient(email) {
+    email = email.trim().toLowerCase();
+    if (!email) return;
+    if (!EMAIL_RE.test(email)) {
+      setStatus('error', `⚠️ Невалидный email: <strong>${escHtml(email)}</strong>`);
+      return;
+    }
+    if (recipients.includes(email)) return;
+    recipients.push(email);
+    renderRecipients();
+  }
+
+  function removeRecipient(idx) {
+    recipients.splice(idx, 1);
+    renderRecipients();
+  }
+
+  function renderRecipients() {
+    const wrap = document.getElementById('recipientsWrap');
+    const input = document.getElementById('recipientInput');
+    // remove old tags
+    wrap.querySelectorAll('.tag').forEach(t => t.remove());
+    recipients.forEach((email, i) => {
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.innerHTML = `<span>${email}</span><button onclick="removeRecipient(${i})" title="Удалить">×</button>`;
+      wrap.insertBefore(tag, input);
     });
-  },
-};
+  }
+
+  // ── Files ──────────────────────────────────────────────────────────────────
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('fileZone').classList.add('dragging');
+  }
+
+  function handleDragLeave() {
+    document.getElementById('fileZone').classList.remove('dragging');
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('fileZone').classList.remove('dragging');
+    handleFiles(e.dataTransfer.files);
+  }
+
+  const MAX_TOTAL_BYTES = 20 * 1024 * 1024; // 20 MB
+
+  function getTotalSize() {
+    return attachments.reduce((sum, f) => sum + atob(f.base64).length, 0);
+  }
+
+  function handleFiles(files) {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64 = e.target.result.split(',')[1];
+        const newTotal = getTotalSize() + file.size;
+        if (newTotal > MAX_TOTAL_BYTES) {
+          setStatus('error', `⚠️ Превышен лимит вложений 20 МБ — <strong>${file.name}</strong> не добавлен.<br>Текущий размер: ${formatSize(getTotalSize())} / 20 MB`);
+          return;
+        }
+        attachments.push({ name: file.name, type: file.type || 'application/octet-stream', base64 });
+        renderFiles();
+        updateSizeBar();
+      };
+      reader.readAsDataURL(file);
+    });
+    document.getElementById('fileInput').value = '';
+  }
+
+  function updateSizeBar() {
+    const total = getTotalSize();
+    const pct = Math.min((total / MAX_TOTAL_BYTES) * 100, 100);
+    const bar = document.getElementById('sizeBar');
+    const label = document.getElementById('sizeLabel');
+    if (!bar) return;
+    bar.style.width = pct + '%';
+    bar.style.background = pct > 85 ? 'var(--error)' : pct > 60 ? 'var(--warning)' : 'var(--accent)';
+    label.textContent = formatSize(total) + ' / 20 MB';
+  }
+
+  function removeFile(idx) {
+    attachments.splice(idx, 1);
+    renderFiles();
+    updateSizeBar();
+  }
+
+  function renderFiles() {
+    const list = document.getElementById('fileList');
+    list.innerHTML = '';
+    attachments.forEach((f, i) => {
+      const size = formatSize(atob(f.base64).length);
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `
+        <span>📄</span>
+        <span class="file-name">${escHtml(f.name)}</span>
+        <span class="file-size">${size}</span>
+        <button class="file-remove" onclick="removeFile(${i})" title="Удалить">×</button>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Utils ──────────────────────────────────────────────────────────────────
+  function updateCharCount() {
+    const len = document.getElementById('body').value.length;
+    document.getElementById('charCount').textContent = len.toLocaleString('ru') + ' символов';
+  }
+
+  function setStatus(type, html) {
+    const box = document.getElementById('statusBox');
+    box.className = 'status-box ' + type;
+    box.innerHTML = html;
+  }
+
+  function clearStatus() {
+    const box = document.getElementById('statusBox');
+    box.className = 'status-box';
+    box.innerHTML = '';
+  }
+
+  // ── Send ───────────────────────────────────────────────────────────────────
+  const SENDERS = {
+    rustat:     { email: 'report@rustatsport.ru',   name: 'Rustat' },
+    sportsbase: { email: 'reports@sportsbase.world', name: 'Sportsbase' },
+  };
+
+  // ── Send ───────────────────────────────────────────────────────────────────
+  async function sendEmail() {
+    clearStatus();
+
+    const senderKey = document.querySelector('input[name="sender"]:checked').value;
+    const sender    = SENDERS[senderKey];
+    const subject   = document.getElementById('subject').value.trim();
+    const body      = document.getElementById('body').value.trim();
+
+    if (recipients.length === 0) {
+      setStatus('error', '• Добавьте хотя бы одного получателя');
+      return;
+    }
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Отправка...';
+
+    // Оборачиваем текст в шаблон в зависимости от отправителя
+    const bodyText  = body ? body.replace(/\n/g, '<br>') : '&nbsp;';
+    const titleText = subject || '&nbsp;';
+
+    const templateRustat = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title></title>
+  <style type="text/css">
+    html, body { margin: 0 auto !important; padding: 0 !important; height: 100% !important; width: 100% !important; }
+    * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
+    table { border-spacing: 0; border-collapse: collapse; table-layout: fixed; }
+    a { text-decoration: none; cursor: pointer; }
+    img { -ms-interpolation-mode: bicubic; border: 0; }
+    p { margin: 0 !important; }
+  </style>
+  <style type="text/css">
+    body { background-color: #0B456E; font-family: Tahoma, sans-serif; }
+    td { padding: 0; }
+  </style>
+</head>
+<body>
+<table border="0" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;background-color:#0B456E;mso-padding-alt:0;">
+  <tr>
+    <td align="center" valign="top" style="line-height:0;font-size:0;">
+      <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;">
+        <tr>
+          <td align="center" valign="top" style="padding-top:24px;padding-bottom:24px;">
+            <a href="#" target="_blank" rel="noopener noreferrer">
+              <img src="https://rustatsport.b-cdn.net/media/rustatsport/assets/logo.png" alt="">
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" style="padding-right:20px;padding-left:20px;">
+      <div style="display:inline-block;background-color:#ffffff;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:640px;background-color:#ffffff;margin:0 auto;border-spacing:0;font-family:Tahoma,sans-serif;border-radius:20px;">
+          <tr>
+            <td align="center" valign="top" style="line-height:0;font-size:0;padding:32px 48px;">
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;max-width:560px;">
+                <tr>
+                  <td align="center" valign="top" style="line-height:0;font-size:0;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;">
+                      <tr>
+                        <td align="left" valign="top" style="font-family:Tahoma,Geneva,sans-serif;font-size:18px;font-weight:700;line-height:26px;text-align:left;color:#000;padding-bottom:11px;">
+                          <div style="font-size:21px;line-height:26px;font-weight:700;color:#000000;">${titleText}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" valign="top" style="padding:0;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr><td style="background-color:#BFC0C3;height:1px;font-size:0;line-height:1px;">&nbsp;</td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top:12px;padding-bottom:11px;">
+                          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                              <td align="left" valign="top">
+                                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family:Tahoma,Geneva,sans-serif;">
+                                  <tr>
+                                    <td style="font-family:Tahoma,Geneva,sans-serif;font-size:14px;font-weight:700;letter-spacing:0em;line-height:24px;text-align:left;color:#142B3E;">${bodyText}</td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" style="line-height:0;font-size:0;">
+      <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;max-width:640px;">
+        <tr>
+          <td align="left" valign="top" style="padding-top:23px;padding-bottom:23px;padding-left:48px;">
+            <a href="#" target="_blank" rel="noopener noreferrer">
+              <img src="https://rustatsport.b-cdn.net/media/rustatsport/assets/logo.png" alt="" width="99" style="width:99px;">
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
+    const templateSportsbase = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf8">
+  <title></title>
+  <style type="text/css">
+    html, body { margin: 0 auto !important; padding: 0 !important; height: 100% !important; width: 100% !important; }
+    * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
+    table { border-spacing: 0; border-collapse: collapse; table-layout: fixed; }
+    a { text-decoration: none; cursor: pointer; }
+    img { -ms-interpolation-mode: bicubic; border: 0; }
+    p { margin: 0 !important; }
+  </style>
+  <style type="text/css">
+    body { background-color: #eff0f9; font-family: Tahoma, sans-serif; }
+    td { padding: 0; }
+  </style>
+</head>
+<body>
+<table border="0" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;background-color:#eff0f9;mso-padding-alt:0;">
+  <tr>
+    <td align="center" valign="top" style="line-height:0;font-size:0;">
+      <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;">
+        <tr>
+          <td align="center" valign="top" style="padding-top:24px;padding-bottom:24px;">
+            <a href="#" target="_blank" rel="noopener noreferrer">
+              <img src="https://sportsbase.b-cdn.net/media/sportsbase/assets/logo-top-400.png" width="226" height="53" style="margin:0;padding:0;outline:0;border:0;display:block;" alt="">
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" style="padding-right:20px;padding-left:20px;">
+      <div style="display:inline-block;background-color:#ffffff;border-radius:20px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:640px;background-color:#ffffff;margin:0 auto;border-spacing:0;font-family:Tahoma,sans-serif;border-radius:20px;">
+          <tr>
+            <td align="center" valign="top" style="line-height:0;font-size:0;padding:32px 48px;">
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;max-width:560px;">
+                <tr>
+                  <td align="center" valign="top" style="line-height:0;font-size:0;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;">
+                      <tr>
+                        <td align="left" valign="top" style="font-family:Tahoma,Geneva,sans-serif;font-size:18px;font-weight:700;line-height:26px;text-align:left;color:#000000;padding-bottom:11px;">
+                          <div style="font-size:21px;font-weight:700;line-height:26px;color:#000000;">${titleText}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" valign="top" style="padding:0;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr><td style="background-color:#BFC0C3;height:1px;font-size:0;line-height:1px;">&nbsp;</td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top:12px;padding-bottom:11px;">
+                          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                              <td align="left" valign="top">
+                                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family:Tahoma,Geneva,sans-serif;">
+                                  <tr>
+                                    <td style="font-family:Tahoma,Geneva,sans-serif;font-size:14px;font-weight:700;letter-spacing:0em;line-height:24px;text-align:left;color:#142B3E;">${bodyText}</td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" style="line-height:0;font-size:0;">
+      <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0;overflow:hidden;padding:0;max-width:640px;">
+        <tr>
+          <td align="left" valign="top" style="padding-top:23px;padding-bottom:23px;padding-left:48px;">
+            <a href="#" target="_blank" rel="noopener noreferrer">
+              <img src="https://sportsbase.b-cdn.net/media/sportsbase/assets/logo-footer-215.png" width="107" height="26" style="margin:0;padding:0;outline:0;border:0;display:block;" alt="">
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
+    const htmlBody = senderKey === 'rustat' ? templateRustat : templateSportsbase;
+    const isHtml = true;
+
+    const payload = {
+      // key добавляется воркером из секрета
+      message: {
+        from_email: sender.email,
+        from_name:  sender.name,
+        subject:    subject || '(без темы)',
+        to: recipients.map(email => ({ email, type: 'to' })),
+        ...(isHtml
+          ? { html: htmlBody }
+          : { html: htmlBody }
+        ),
+      }
+    };
+
+    if (attachments.length) {
+      payload.message.attachments = attachments.map(f => ({
+        type:    f.type,
+        name:    f.name,
+        content: f.base64,
+      }));
+    }
+
+    try {
+      const res = await fetch(PROXY_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Auth-Token': sessionToken },
+        body:    JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || (Array.isArray(data) && data[0]?.status === 'error') || data.status === 'error') {
+        const msg = data.message || data[0]?.reject_reason || JSON.stringify(data, null, 2);
+        setStatus('error', `<strong>Ошибка Mandrill:</strong><pre>${escHtml(msg)}</pre>`);
+      } else {
+        const results = Array.isArray(data) ? data : [data];
+        const lines = results.map(r =>
+          `${r.email} → <strong style="color:var(--success)">${r.status}</strong>${r.reject_reason ? ' (' + r.reject_reason + ')' : ''}`
+        ).join('<br>');
+        setStatus('success', `<strong>✓ Отправлено!</strong><br><br>${lines}`);
+      }
+    } catch (err) {
+      setStatus('error', `<strong>Сетевая ошибка:</strong><pre>${escHtml(err.message)}</pre>`);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = 'Отправить письмо →';
+  }
+</script>
+</body>
+</html>
