@@ -623,29 +623,26 @@
     <p class="subtitle">// отправка писем через Mandrill с вложениями</p>
   </header>
 
-<!-- SENDER SELECT -->
-<div class="section">
-  <div class="section-title">— Отправитель</div>
-  <div class="sender-selector">
-
-    <label class="sender-option">
-      <input type="radio" name="sender" value="rustat" checked>
-      <span class="sender-card">
-        <div class="s-name">Rustat</div>
-        <div class="s-email">почта report@rustatsport.ru</div>
-      </span>
-    </label>
-
-    <label class="sender-option">
-      <input type="radio" name="sender" value="sportsbase">
-      <span class="sender-card">
-        <div class="s-name">Sportsbase</div>
-        <div class="s-email">почта reports@sportsbase.world</div>
-      </span>
-    </label>
-
+  <!-- SENDER SELECT -->
+  <div class="section">
+    <div class="section-title">— Отправитель</div>
+    <div class="sender-selector">
+      <label class="sender-option">
+        <input type="radio" name="sender" value="rustat" checked>
+        <span class="sender-card">
+          <div class="s-name">Rustat</div>
+          <div class="s-email" id="emailRustat"></div>
+        </span>
+      </label>
+      <label class="sender-option">
+        <input type="radio" name="sender" value="sportsbase">
+        <span class="sender-card">
+          <div class="s-name">Sportsbase</div>
+          <div class="s-email" id="emailSportsbase"></div>
+        </span>
+      </label>
+    </div>
   </div>
-</div>
 
   <div class="divider"></div>
 
