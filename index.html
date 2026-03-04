@@ -1196,6 +1196,7 @@
         from_email: sender.email,
         from_name:  sender.name,
         subject:    subject || '(без темы)',
+        tags:       ['manual-send', senderKey],
         to: recipients.map(email => ({ email, type: 'to' })),
         ...(isHtml
           ? { html: htmlBody }
