@@ -820,12 +820,6 @@
     emails.forEach(addRecipient);
     this.value = '';
   });
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData('text');
-    const emails = text.split(/[\s,;]+/).filter(s => s.includes('@'));
-    emails.forEach(addRecipient);
-    this.value = '';
-  });
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
