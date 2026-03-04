@@ -722,8 +722,7 @@
 
 <script>
   // ── Config ─────────────────────────────────────────────────────────────────
-  // Замени на свой URL воркера:
-  const PROXY_URL = 'https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev';
+  const PROXY_URL = 'https://mandrill-proxy.dhnf11.workers.dev';
 
   // ── Auth ───────────────────────────────────────────────────────────────────
   let sessionToken = null;
@@ -981,4 +980,16 @@
         const results = Array.isArray(data) ? data : [data];
         const lines = results.map(r =>
           `${r.email} → <strong style="color:var(--success)">${r.status}</strong>${r.reject_reason ? ' (' + r.reject_reason + ')' : ''}`
-        ).join('
+        ).join('<br>');
+        setStatus('success', `<strong>✓ Отправлено!</strong><br><br>${lines}`);
+      }
+    } catch (err) {
+      setStatus('error', `<strong>Сетевая ошибка:</strong><pre>${escHtml(err.message)}</pre>`);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = 'Отправить письмо →';
+  }
+</script>
+</body>
+</html>
