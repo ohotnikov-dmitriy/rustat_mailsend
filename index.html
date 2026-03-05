@@ -728,7 +728,7 @@
     <div class="file-list" id="fileList"></div>
     <div class="size-bar-wrap" id="sizeBarWrap">
       <div class="size-bar-track"><div class="size-bar-fill" id="sizeBar"></div></div>
-      <span class="size-label" id="sizeLabel">0 B / 20 MB</span>
+      <span class="size-label" id="sizeLabel">0 B / 200 MB</span>
     </div>
   </div>
 
@@ -869,27 +869,22 @@
     handleFiles(e.dataTransfer.files);
   }
 
-  const MAX_TOTAL_BYTES = 20 * 1024 * 1024; // 20 MB
+  const MAX_TOTAL_BYTES = 200 * 1024 * 1024; // 200 MB
 
   function getTotalSize() {
-    return attachments.reduce((sum, f) => sum + atob(f.base64).length, 0);
+    return attachments.reduce((sum, f) => sum + f.size, 0);
   }
 
   function handleFiles(files) {
     Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const base64 = e.target.result.split(',')[1];
-        const newTotal = getTotalSize() + file.size;
-        if (newTotal > MAX_TOTAL_BYTES) {
-          setStatus('error', `⚠️ Превышен лимит вложений 20 МБ — <strong>${file.name}</strong> не добавлен.<br>Текущий размер: ${formatSize(getTotalSize())} / 20 MB`);
-          return;
-        }
-        attachments.push({ name: file.name, type: file.type || 'application/octet-stream', base64 });
-        renderFiles();
-        updateSizeBar();
-      };
-      reader.readAsDataURL(file);
+      const newTotal = getTotalSize() + file.size;
+      if (newTotal > MAX_TOTAL_BYTES) {
+        setStatus('error', `⚠️ Превышен лимит 200 МБ — <strong>${escHtml(file.name)}</strong> не добавлен.<br>Текущий размер: ${formatSize(getTotalSize())} / 200 MB`);
+        return;
+      }
+      attachments.push({ name: file.name, type: file.type || 'application/octet-stream', size: file.size, file });
+      renderFiles();
+      updateSizeBar();
     });
     document.getElementById('fileInput').value = '';
   }
@@ -902,7 +897,7 @@
     if (!bar) return;
     bar.style.width = pct + '%';
     bar.style.background = pct > 85 ? 'var(--error)' : pct > 60 ? 'var(--warning)' : 'var(--accent)';
-    label.textContent = formatSize(total) + ' / 20 MB';
+    label.textContent = formatSize(total) + ' / 200 MB';
   }
 
   function removeFile(idx) {
@@ -915,7 +910,7 @@
     const list = document.getElementById('fileList');
     list.innerHTML = '';
     attachments.forEach((f, i) => {
-      const size = formatSize(atob(f.base64).length);
+      const size = formatSize(f.size);
       const item = document.createElement('div');
       item.className = 'file-item';
       item.innerHTML = `
@@ -1184,28 +1179,54 @@
     const htmlBody = senderKey === 'rustat' ? templateRustat : templateSportsbase;
     const isHtml = true;
 
+    // Загружаем файлы в MinIO и получаем публичные ссылки
+    let fileLinks = [];
+    if (attachments.length) {
+      btn.innerHTML = '<span class="spinner"></span>Загрузка файлов...';
+      try {
+        for (const f of attachments) {
+          const uniqueName = `${Date.now()}_${f.name}`;
+          const presignRes = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Auth-Token': sessionToken },
+            body: JSON.stringify({ _presign: true, fileName: uniqueName, contentType: f.type }),
+          });
+          const { presignedUrl, publicUrl } = await presignRes.json();
+          await fetch(presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': f.type },
+            body: f.file,
+          });
+          fileLinks.push({ name: f.name, url: publicUrl });
+        }
+      } catch (err) {
+        setStatus('error', `<strong>Ошибка загрузки файла:</strong><pre>${escHtml(err.message)}</pre>`);
+        btn.disabled = false;
+        btn.innerHTML = 'Отправить письмо →';
+        return;
+      }
+    }
+
+    // Вставляем ссылки на файлы в конец письма
+    let finalHtmlBody = htmlBody;
+    if (fileLinks.length) {
+      const linksHtml = fileLinks.map(f =>
+        `<a href="${f.url}" style="color:#0B456E;text-decoration:underline;font-family:Tahoma,sans-serif;font-size:14px;">${escHtml(f.name)}</a>`
+      ).join('<br>');
+      finalHtmlBody = htmlBody.replace('</body>', `<div style="padding:12px 48px 24px;font-family:Tahoma,sans-serif;font-size:13px;color:#555;"><strong style="color:#333;">Прикреплённые файлы:</strong><br><br>${linksHtml}</div></body>`);
+    }
+
+    btn.innerHTML = '<span class="spinner"></span>Отправка...';
+
     const payload = {
-      // key добавляется воркером из секрета
       message: {
         from_email: sender.email,
         from_name:  sender.name,
         subject:    subject || '(без темы)',
-        tags:       ['manual-send'],
         to: recipients.map(email => ({ email, type: 'to' })),
-        ...(isHtml
-          ? { html: htmlBody }
-          : { html: htmlBody }
-        ),
+        html: finalHtmlBody,
       }
     };
-
-    if (attachments.length) {
-      payload.message.attachments = attachments.map(f => ({
-        type:    f.type,
-        name:    f.name,
-        content: f.base64,
-      }));
-    }
 
     try {
       const res = await fetch(PROXY_URL, {
@@ -1214,7 +1235,9 @@
         body:    JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 200) }; }
 
       if (!res.ok || (Array.isArray(data) && data[0]?.status === 'error') || data.status === 'error') {
         const msg = data.message || data[0]?.reject_reason || JSON.stringify(data, null, 2);
