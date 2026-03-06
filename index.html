@@ -1185,7 +1185,7 @@
       btn.innerHTML = '<span class="spinner"></span>Загрузка файлов...';
       try {
         for (const f of attachments) {
-          const uniqueName = `${Date.now()}_${f.name}`;
+          const uniqueName = `${Date.now()}_${encodeURIComponent(f.name)}`;
           const uploadRes = await fetch(PROXY_URL, {
             method: 'POST',
             headers: {
